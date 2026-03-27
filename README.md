@@ -50,6 +50,8 @@
 | API | 役割 |
 |---|---|
 | `encsqlite_open_v2()` | 暗号 DB を開く / 必要なら新規作成する |
+| `encsqlite_connection_sqlite3()` | 接続ハンドルから `sqlite3*` を取り出す |
+| `encsqlite_connection_codec()` | 接続ハンドルに紐づく codec context を取り出す |
 | `encsqlite_migrate_plaintext()` | 平文 DB を暗号 DB に移行する |
 | `encsqlite_rekey_copy_swap()` | 新しい鍵で DB を再生成する |
 | `encsqlite_export()` | 別パスへ暗号 DB を出力する |
@@ -61,6 +63,7 @@
 - SQLite そのものを別ストレージエンジン化せず、pager 境界に codec を差し込む
 - DB 本体と補助ファイルには同じ canonical encrypted page image を使う
 - TEMP 系の平文 spill を減らすため、`SQLITE_TEMP_STORE=3` や `temp_store=MEMORY` を前提にする
+- 現在は接続ラッパーで `authorizer` と固定 `PRAGMA` を先に固め、pager patch は次段階で差し込む
 - 以下はアプリ側から変更させない
   - `PRAGMA key`
   - `PRAGMA journal_mode`
@@ -116,14 +119,16 @@
 - `wrappers/ios/`: Swift wrapper placeholder
 - `wrappers/android/`: JNI / Room wrapper placeholder
 - `scripts/`: maintenance helpers
-- `.github/workflows/`: CI
 
 ## Build
 
 Prerequisites:
 
 - CMake 3.22 or newer
+- `pkg-config`
 - A C11-capable compiler such as `clang` or `gcc`
+- OpenSSL 3, libsodium, and Argon2 development packages
+- On macOS with Homebrew: `brew install openssl@3 libsodium argon2`
 
 1. `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release`
 2. `cmake --build build --parallel`

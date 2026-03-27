@@ -7,40 +7,40 @@
 - [x] SQLite の採用バージョンと取り込み方法を決める
 - [x] C API / core source / wrapper のディレクトリ構成を決める
 - [x] debug / release のビルド設定を追加する
-- [x] CI で build と unit test を回す
 - [x] ローカルで再現できるコマンドを README に追記する
 
 ## T-02 暗号プリミティブ実装
 
-- [ ] AES-256-GCM のラッパーを実装する
-- [ ] HKDF-SHA-256 のラッパーを実装する
-- [ ] Argon2id のラッパーを実装する
-- [ ] OS CSPRNG と zeroize ヘルパーを実装する
-- [ ] known-answer test を追加する
+- [x] AES-256-GCM のラッパーを実装する
+- [x] HKDF-SHA-256 のラッパーを実装する
+- [x] Argon2id のラッパーを実装する
+- [x] OS CSPRNG と zeroize ヘルパーを実装する
+- [x] known-answer test を追加する
 
 ## T-03 ページ形式の確定
 
-- [ ] `page_size = 4096` と `reserve_size = 36` を定数化する
-- [ ] page 1 / page > 1 のレイアウトを実装する
-- [ ] `db_salt` / `nonce` / `tag` / `key_epoch` の配置を確定する
-- [ ] AAD 生成ロジックを実装する
-- [ ] 形式検証テストを追加する
+- [x] `page_size = 4096` と `reserve_size = 36` を定数化する
+- [x] page 1 / page > 1 のレイアウトを実装する
+- [x] `db_salt` / `nonce` / `tag` / `key_epoch` の配置を確定する
+- [x] AAD 生成ロジックを実装する
+- [x] 形式検証テストを追加する
 
 ## T-04 codec 実装
 
-- [ ] page > 1 の read path を実装する
-- [ ] page > 1 の write path を実装する
-- [ ] page 1 のヘッダ合成と検証を実装する
-- [ ] tag failure のエラー正規化を実装する
-- [ ] page swap / bit flip の破壊テストを追加する
+- [x] page > 1 の read path を実装する
+- [x] page > 1 の write path を実装する
+- [x] page 1 のヘッダ合成と検証を実装する
+- [x] tag failure のエラー正規化を実装する
+- [x] page swap / bit flip の破壊テストを追加する
 
 ## T-05 SQLite 統合
 
+- [x] SQLite 接続ラッパーを追加する
 - [ ] pager 初期化に codec context を差し込む
-- [ ] WAL / rollback journal の経路を接続する
-- [ ] authorizer と固定 PRAGMA を導入する
-- [ ] `mmap_size = 0` と `load_extension()` 無効化を固定する
-- [ ] 基本 SQL 操作の結合テストを追加する
+- [x] WAL / rollback journal の経路を接続する
+- [x] authorizer と固定 PRAGMA を導入する
+- [x] `mmap_size = 0` と `load_extension()` 無効化を固定する
+- [x] 基本 SQL 操作の結合テストを追加する
 
 ## T-06 鍵保護 iOS
 

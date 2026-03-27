@@ -6,7 +6,7 @@
 
 | Phase | 目的 | 主な成果物 | 完了条件 |
 |---|---|---|---|
-| Phase 0 | 基盤整備 | リポジトリ構成、CI、SQLite 取り込み方針、開発規約 | 実装前提の作業環境が揃う |
+| Phase 0 | 基盤整備 | リポジトリ構成、SQLite 取り込み方針、開発規約 | 実装前提の作業環境が揃う |
 | Phase 1 | フォーマット PoC | page 1 / page > 1 の暗号化形式、AAD、reserved bytes 定義 | encrypt / decrypt の往復が通る |
 | Phase 2 | Pager 統合 | pager codec、WAL / journal 経路、エラー正規化 | 基本トランザクションが安定する |
 | Phase 3 | 鍵管理統合 | iOS Keychain、Android Keystore、device-bound / passphrase mode | open / create / migrate が通る |

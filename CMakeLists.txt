@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.22)
 project(encryp_base VERSION 0.1.0 LANGUAGES C)
 
 include(CTest)
+find_package(PkgConfig REQUIRED)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -11,12 +12,34 @@ set(CMAKE_C_EXTENSIONS OFF)
 set(ENCSQLITE_SQLITE_VERSION_TOKEN "3510300")
 set(ENCSQLITE_SQLITE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite/${ENCSQLITE_SQLITE_VERSION_TOKEN}")
 
+pkg_check_modules(OPENSSL_PC REQUIRED IMPORTED_TARGET openssl)
+pkg_check_modules(LIBSODIUM_PC REQUIRED IMPORTED_TARGET libsodium)
+find_path(ARGON2_INCLUDE_DIR
+  NAMES argon2.h
+  HINTS
+    /opt/homebrew/include
+    /usr/local/include
+)
+find_library(ARGON2_LIBRARY
+  NAMES argon2
+  HINTS
+    /opt/homebrew/lib
+    /usr/local/lib
+)
+
 if(NOT EXISTS "${ENCSQLITE_SQLITE_SOURCE_DIR}/sqlite3.c")
   message(FATAL_ERROR "Vendored SQLite amalgamation is missing: ${ENCSQLITE_SQLITE_SOURCE_DIR}")
+endif()
+if(NOT ARGON2_INCLUDE_DIR OR NOT ARGON2_LIBRARY)
+  message(FATAL_ERROR "Argon2 development files are missing. Install the argon2 package.")
 endif()
 
 add_library(encsqlite_base STATIC
   src/encsqlite_build_info.c
+  src/encsqlite_codec.c
+  src/encsqlite_connection.c
+  src/encsqlite_crypto.c
+  src/encsqlite_page_format.c
 )
 
 target_include_directories(encsqlite_base
@@ -24,6 +47,7 @@ target_include_directories(encsqlite_base
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
   PRIVATE
     "${ENCSQLITE_SQLITE_SOURCE_DIR}"
+    "${ARGON2_INCLUDE_DIR}"
 )
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
@@ -50,6 +74,9 @@ target_compile_definitions(sqlite3_vendor
 target_link_libraries(encsqlite_base
   PUBLIC
     sqlite3_vendor
+    PkgConfig::OPENSSL_PC
+    PkgConfig::LIBSODIUM_PC
+    "${ARGON2_LIBRARY}"
 )
 
 if(BUILD_TESTING)
@@ -57,8 +84,28 @@ if(BUILD_TESTING)
     tests/test_build.c
   )
 
+  add_executable(encsqlite_crypto_test
+    tests/test_crypto.c
+  )
+
+  add_executable(encsqlite_codec_test
+    tests/test_codec.c
+  )
+
+  add_executable(encsqlite_connection_test
+    tests/test_connection.c
+  )
+
+  add_executable(encsqlite_page_format_test
+    tests/test_page_format.c
+  )
+
   if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     target_compile_options(encsqlite_smoke_test PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(encsqlite_crypto_test PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(encsqlite_codec_test PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(encsqlite_connection_test PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(encsqlite_page_format_test PRIVATE -Wall -Wextra -Wpedantic)
   endif()
 
   target_link_libraries(encsqlite_smoke_test
@@ -66,5 +113,29 @@ if(BUILD_TESTING)
       encsqlite_base
   )
 
+  target_link_libraries(encsqlite_crypto_test
+    PRIVATE
+      encsqlite_base
+  )
+
+  target_link_libraries(encsqlite_codec_test
+    PRIVATE
+      encsqlite_base
+  )
+
+  target_link_libraries(encsqlite_connection_test
+    PRIVATE
+      encsqlite_base
+  )
+
+  target_link_libraries(encsqlite_page_format_test
+    PRIVATE
+      encsqlite_base
+  )
+
   add_test(NAME encsqlite_smoke_test COMMAND encsqlite_smoke_test)
+  add_test(NAME encsqlite_crypto_test COMMAND encsqlite_crypto_test)
+  add_test(NAME encsqlite_codec_test COMMAND encsqlite_codec_test)
+  add_test(NAME encsqlite_connection_test COMMAND encsqlite_connection_test)
+  add_test(NAME encsqlite_page_format_test COMMAND encsqlite_page_format_test)
 endif()

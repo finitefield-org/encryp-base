@@ -45,7 +45,7 @@
 - `VACUUM`
 - `load_extension()`
 
-## 提供予定 API
+## 公開 API
 
 | API | 役割 |
 |---|---|
@@ -103,6 +103,7 @@
 - power loss や rename 途中中断を含む耐障害試験
 - iOS / Android の鍵保護クラス確認
 - 禁止 PRAGMA やログ露出の確認
+- 実機検証手順: [doc/mobile_device_verification.md](doc/mobile_device_verification.md)
 
 ## 開発計画
 
@@ -110,14 +111,42 @@
 - タスク一覧: [TASKS.md](TASKS.md)
 - 運用手引き: [OPERATIONS.md](OPERATIONS.md)
 
+## iOS Swift Wrapper
+
+- パッケージ: `wrappers/ios`
+- 実行: `cd wrappers/ios && swift test`
+- 使用例: [wrappers/ios/README.md](wrappers/ios/README.md)
+- Keychain helper と DB file protection を含む
+- 保存済み Keychain item から直接 open できる
+- protected data available を待つ helper を含む
+- DB ファイル保護は `EncSQLiteOpenOptions.fileProtection` で制御し、既定は `.complete`
+
+## Android JNI / Room Wrapper
+
+- モジュール: `wrappers/android`
+- 主要 API: `EncSQLiteDatabase`, `EncSQLiteDriver`, `EncSQLiteRoomFactory`, `EncSQLiteKeyStore`, `EncSQLiteDirectBootHarness`
+- 使用例: [wrappers/android/README.md](wrappers/android/README.md)
+- 直接 open は `Context` から `getDatabasePath()` を経由して internal storage に置く
+- Keystore-backed open では wrapped DEK blob を app-private internal storage に保存する
+- direct-boot aware receiver と device-protected storage 用の pre-unlock harness を含む
+- Android Gradle library scaffold を含み、`gradle assembleDebug` で Kotlin 側の構成を確認できる
+- JNI target は `-Pencsqlite.buildNativeBridge=true` で opt-in にできる
+- 実機 / エミュレータ向けの instrumentation tests を `gradle connectedDebugAndroidTest` で実行できる
+- Kotlin は AGP 9.x の built-in support でコンパイルするため、追加の Kotlin plugin は不要
+- Android では user-unlocked 待ち helper を使って、reboot 後の app-private storage アクセスを遅延できる
+- `EncSQLiteKeyStore.loadOrCreateKeyMaterial(...)` は unlock 待ちの callback と timeout を受け取れる
+- 実機検証の流れをまとめた [scripts/verify_android_device.sh](scripts/verify_android_device.sh) を用意している
+
 ## Repository Layout
 
 - `include/encsqlite/`: public headers
 - `src/`: core library sources
 - `tests/`: smoke tests
 - `third_party/sqlite/3510300/`: pinned SQLite amalgamation 3.51.3
-- `wrappers/ios/`: Swift wrapper placeholder
-- `wrappers/android/`: JNI / Room wrapper placeholder
+- `include/encsqlite/api.h`: migrate / rekey / export public API
+- `src/encsqlite_api.c`: backup / copy-swap implementation
+- `wrappers/ios/`: SwiftPM package for the Swift wrapper
+- `wrappers/android/`: Android Gradle module scaffold for the JNI / Room wrapper
 - `scripts/`: maintenance helpers
 
 ## Build
@@ -133,6 +162,9 @@ Prerequisites:
 1. `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release`
 2. `cmake --build build --parallel`
 3. `ctest --test-dir build --output-on-failure`
+4. `./build/encsqlite_benchmark`
+5. Android wrapper: `cd wrappers/android && gradle assembleDebug`
+6. Android JNI target を試す場合は `-Pencsqlite.buildNativeBridge=true` を付ける
 
 ## SQLite Baseline
 

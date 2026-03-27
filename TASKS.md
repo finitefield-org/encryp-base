@@ -36,7 +36,7 @@
 ## T-05 SQLite 統合
 
 - [x] SQLite 接続ラッパーを追加する
-- [ ] pager 初期化に codec context を差し込む
+- [x] pager 初期化に codec context を差し込む
 - [x] WAL / rollback journal の経路を接続する
 - [x] authorizer と固定 PRAGMA を導入する
 - [x] `mmap_size = 0` と `load_extension()` 無効化を固定する
@@ -44,54 +44,64 @@
 
 ## T-06 鍵保護 iOS
 
-- [ ] Keychain 保存 / 取得 / 削除のヘルパーを実装する
-- [ ] `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` を既定にする
-- [ ] DB ファイルの File Protection 設定を実装する
+- [x] Keychain 保存 / 取得 / 削除のヘルパーを実装する
+- [x] `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` を既定にする
+- [x] DB ファイルの File Protection 設定を実装する
+- [x] Keychain item から直接 open する helper を追加する
+- [x] protected data available を待つ helper を追加する
 - [ ] unlock / lock 切り替え時の open 動作を確認する
 - [ ] 再インストールと端末移行の挙動を検証する
 
 ## T-07 鍵保護 Android
 
-- [ ] Keystore wrapping key を生成する
-- [ ] DEK の wrap / unwrap を実装する
-- [ ] wrapped blob の保存先を internal storage に固定する
-- [ ] StrongBox 優先生成を実装する
+- [x] Keystore wrapping key を生成する
+- [x] DEK の wrap / unwrap を実装する
+- [x] wrapped blob の保存先を internal storage に固定する
+- [x] StrongBox 優先生成を実装する
+- [x] user-unlocked 待ち helper を追加する
 - [ ] reboot 後 / unlock 前後の動作を検証する
 
 ## T-08 公開 API 実装
 
-- [ ] C ヘッダに公開型と error code を定義する
-- [ ] `encsqlite_open_v2()` を実装する
-- [ ] `encsqlite_migrate_plaintext()` を実装する
-- [ ] `encsqlite_rekey_copy_swap()` を実装する
-- [ ] `encsqlite_export()` / `encsqlite_checkpoint()` / `encsqlite_close_secure()` を実装する
+- [x] C ヘッダに公開型と error code を定義する
+- [x] `encsqlite_open_v2()` を実装する
+- [x] `encsqlite_migrate_plaintext()` を実装する
+- [x] `encsqlite_rekey_copy_swap()` を実装する
+- [x] `encsqlite_export()` / `encsqlite_checkpoint()` / `encsqlite_close_secure()` を実装する
 
 ## T-09 migrate / rekey 実装
 
-- [ ] source DB を read-only で開く
-- [ ] backup API で `dest.tmp` にコピーする
-- [ ] quick_check と `application_id` 検証を実装する
-- [ ] fsync と atomic rename を実装する
-- [ ] recovery marker の作成 / 読み出し / 復旧を実装する
-- [ ] bak 削除の遅延回収を実装する
+- [x] source DB を read-only で開く
+- [x] backup API で `dest.tmp` にコピーする
+- [x] quick_check と `application_id` 検証を実装する
+- [x] fsync と atomic rename を実装する
+- [x] recovery marker の作成 / 読み出し / 復旧を実装する
+- [x] bak 削除の遅延回収を実装する
 
 ## T-10 wrapper 実装
 
-- [ ] Swift wrapper の open API を実装する
-- [ ] JNI binding を実装する
-- [ ] Room 用 factory を実装する
-- [ ] サンプルアプリまたは最小利用例を追加する
-- [ ] wrapper の使用例をドキュメント化する
+- [x] Swift wrapper の open API を実装する
+- [x] JNI binding を実装する
+- [x] Room 用 factory を実装する
+- [x] サンプルアプリまたは最小利用例を追加する
+- [x] wrapper の使用例をドキュメント化する
 
 ## T-11 テスト拡充
 
-- [ ] differential test を追加する
-- [ ] page 1 / page N の破損テストを追加する
-- [ ] stale WAL の差し戻しテストを追加する
-- [ ] power loss / kill / rename 途中中断のテストを追加する
-- [ ] benchmark を追加する
-- [ ] iOS / Android の保護クラス検証を追加する
-- [ ] 禁止 PRAGMA とログ露出の検証を追加する
+- [x] differential test を追加する
+- [x] page 1 / page N の破損テストを追加する
+- [x] stale WAL の差し戻しテストを追加する
+- [x] power loss / kill / rename 途中中断のテストを追加する
+- [x] benchmark を追加する
+- [x] iOS の file protection class を検証する
+- [x] Android の internal storage open API を追加する
+- [x] Android の instrumentation test スケルトンを追加する
+- [x] Android の instrumentation test をエミュレータで実行する
+- [x] iOS / Android の実機検証手順を文書化する
+- [x] Android の実機検証用スクリプトを追加する
+- [x] Android の direct-boot harness を追加する
+- [ ] Android の file protection / internal storage を実機で検証する
+- [x] 禁止 PRAGMA とログ露出の検証を追加する
 
 ## T-12 運用設計
 

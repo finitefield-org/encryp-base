@@ -1,12 +1,21 @@
 #include "encsqlite/connection.h"
 
 #include <ctype.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "encsqlite/crypto.h"
 #include "sqlite3.h"
+
+extern int encsqlite_sqlite3_open_v2(
+    const char *filename,
+    struct sqlite3 **ppDb,
+    int flags,
+    const char *zVfs,
+    const encsqlite_codec_bridge *bridge);
 
 struct encsqlite_connection {
   struct sqlite3 *db;
@@ -15,6 +24,7 @@ struct encsqlite_connection {
   int has_root_secret;
   encsqlite_codec_context codec;
   int has_codec;
+  encsqlite_codec_bridge codec_bridge;
 };
 
 static void connection_zeroize_material(encsqlite_connection *connection) {
@@ -24,6 +34,7 @@ static void connection_zeroize_material(encsqlite_connection *connection) {
 
   encsqlite_zeroize(connection->root_secret, sizeof(connection->root_secret));
   encsqlite_codec_clear(&connection->codec);
+  memset(&connection->codec_bridge, 0, sizeof(connection->codec_bridge));
   connection->has_root_secret = 0;
   connection->has_codec = 0;
 }
@@ -106,6 +117,9 @@ static int connection_authorizer(
       return SQLITE_OK;
     case SQLITE_PRAGMA:
       if (param1 != NULL && pragma_is_mutable_policy(param1) && param2 != NULL) {
+        if (ascii_ieq(param1, "key") || ascii_iprefix(param1, "cipher_")) {
+          return SQLITE_IGNORE;
+        }
         return SQLITE_DENY;
       }
       return SQLITE_OK;
@@ -269,12 +283,87 @@ static int apply_runtime_policy(struct sqlite3 *db, const encsqlite_open_options
   return SQLITE_OK;
 }
 
+static int codec_bridge_encrypt_page(
+    const void *context,
+    uint32_t page_no,
+    const uint8_t input_page[ENCSQLITE_PAGE_SIZE_BYTES],
+    uint8_t output_page[ENCSQLITE_PAGE_SIZE_BYTES]) {
+  return encsqlite_codec_encrypt_page(
+      (const encsqlite_codec_context *)context,
+      page_no,
+      input_page,
+      output_page);
+}
+
+static int codec_bridge_decrypt_page(
+    const void *context,
+    uint32_t page_no,
+    const uint8_t input_page[ENCSQLITE_PAGE_SIZE_BYTES],
+    uint8_t output_page[ENCSQLITE_PAGE_SIZE_BYTES]) {
+  return encsqlite_codec_decrypt_page(
+      (const encsqlite_codec_context *)context,
+      page_no,
+      input_page,
+      output_page);
+}
+
+static int load_db_salt(
+    const char *filename,
+    const encsqlite_open_options *options,
+    uint8_t db_salt[ENCSQLITE_DB_SALT_BYTES]) {
+  static const uint8_t sqlite_header[ENCSQLITE_SQLITE_HEADER_BYTES] = {
+      'S', 'Q', 'L', 'i', 't', 'e', ' ', 'f',
+      'o', 'r', 'm', 'a', 't', ' ', '3', '\0'};
+  struct stat st;
+  FILE *file = NULL;
+  size_t bytes_read;
+
+  if (filename == NULL || options == NULL || db_salt == NULL) {
+    return SQLITE_MISUSE;
+  }
+
+  if (stat(filename, &st) != 0) {
+    if (errno == ENOENT && options->create_if_missing && !options->read_only) {
+      int rc = encsqlite_random_bytes(db_salt, ENCSQLITE_DB_SALT_BYTES);
+      return rc == ENCSQLITE_CRYPTO_OK ? SQLITE_OK : SQLITE_ERROR;
+    }
+    return SQLITE_CANTOPEN;
+  }
+
+  if (st.st_size == 0) {
+    if (options->create_if_missing && !options->read_only) {
+      int rc = encsqlite_random_bytes(db_salt, ENCSQLITE_DB_SALT_BYTES);
+      return rc == ENCSQLITE_CRYPTO_OK ? SQLITE_OK : SQLITE_ERROR;
+    }
+    return SQLITE_NOTADB;
+  }
+
+  file = fopen(filename, "rb");
+  if (file == NULL) {
+    return SQLITE_CANTOPEN;
+  }
+
+  bytes_read = fread(db_salt, 1, ENCSQLITE_DB_SALT_BYTES, file);
+  fclose(file);
+  if (bytes_read != ENCSQLITE_DB_SALT_BYTES) {
+    return SQLITE_NOTADB;
+  }
+  if (memcmp(db_salt, sqlite_header, sizeof(sqlite_header)) == 0) {
+    return SQLITE_NOTADB;
+  }
+
+  return SQLITE_OK;
+}
+
 static int initialize_codec_context(
     encsqlite_connection *connection,
-    const encsqlite_key_material *key_material) {
-  uint8_t db_salt[ENCSQLITE_DB_SALT_BYTES];
+    const encsqlite_key_material *key_material,
+    const uint8_t db_salt[ENCSQLITE_DB_SALT_BYTES]) {
   int rc;
 
+  if (connection == NULL) {
+    return SQLITE_MISUSE;
+  }
   if (key_material == NULL) {
     return SQLITE_OK;
   }
@@ -284,24 +373,16 @@ static int initialize_codec_context(
   if (key_material->data_len != ENCSQLITE_CODEC_KEY_BYTES || key_material->data == NULL) {
     return SQLITE_MISUSE;
   }
+  if (db_salt == NULL) {
+    return SQLITE_MISUSE;
+  }
 
   memcpy(connection->root_secret, key_material->data, ENCSQLITE_CODEC_KEY_BYTES);
   connection->has_root_secret = 1;
-
-  if (!connection->options.create_if_missing || connection->options.read_only) {
-    return SQLITE_OK;
-  }
-
-  rc = encsqlite_random_bytes(db_salt, sizeof(db_salt));
-  if (rc != ENCSQLITE_CRYPTO_OK) {
-    return SQLITE_ERROR;
-  }
   rc = encsqlite_codec_init(&connection->codec, connection->root_secret, db_salt, 1U);
   if (rc != ENCSQLITE_CODEC_OK) {
-    encsqlite_zeroize(db_salt, sizeof(db_salt));
     return SQLITE_ERROR;
   }
-  encsqlite_zeroize(db_salt, sizeof(db_salt));
   connection->has_codec = 1;
   return SQLITE_OK;
 }
@@ -317,6 +398,7 @@ int encsqlite_open_v2(
     const encsqlite_open_options *options) {
   encsqlite_connection *connection = NULL;
   struct sqlite3 *db = NULL;
+  uint8_t db_salt[ENCSQLITE_DB_SALT_BYTES];
   encsqlite_open_options effective_options;
   int flags;
   int rc;
@@ -332,6 +414,12 @@ int encsqlite_open_v2(
   effective_options.application_id = options != NULL ? options->application_id : 0U;
   effective_options.journal_mode_wal = default_open_option(options != NULL ? options->journal_mode_wal : 0, 1);
 
+  connection = (encsqlite_connection *)calloc(1, sizeof(*connection));
+  if (connection == NULL) {
+    return SQLITE_NOMEM;
+  }
+  connection->options = effective_options;
+
   if (effective_options.read_only) {
     flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX;
   } else {
@@ -341,30 +429,50 @@ int encsqlite_open_v2(
     }
   }
 
-  rc = sqlite3_open_v2(filename, &db, flags, NULL);
+  if (key_material != NULL) {
+    if (key_material->type != ENCSQLITE_KEY_RAW_32 ||
+        key_material->data_len != ENCSQLITE_CODEC_KEY_BYTES ||
+        key_material->data == NULL) {
+      connection_zeroize_material(connection);
+      free(connection);
+      return SQLITE_MISUSE;
+    }
+    rc = load_db_salt(filename, &effective_options, db_salt);
+    if (rc != SQLITE_OK) {
+      connection_zeroize_material(connection);
+      free(connection);
+      return rc;
+    }
+    rc = initialize_codec_context(connection, key_material, db_salt);
+    encsqlite_zeroize(db_salt, sizeof(db_salt));
+    if (rc != SQLITE_OK) {
+      connection_zeroize_material(connection);
+      free(connection);
+      return rc;
+    }
+    connection->codec_bridge.context = &connection->codec;
+    connection->codec_bridge.encrypt_page = codec_bridge_encrypt_page;
+    connection->codec_bridge.decrypt_page = codec_bridge_decrypt_page;
+  }
+
+  rc = encsqlite_sqlite3_open_v2(
+      filename,
+      &db,
+      flags,
+      NULL,
+      connection->has_codec ? &connection->codec_bridge : NULL);
   if (rc != SQLITE_OK) {
     if (db != NULL) {
       sqlite3_close(db);
     }
+    connection_zeroize_material(connection);
+    free(connection);
     return rc;
   }
 
   sqlite3_extended_result_codes(db, 1);
 
-  connection = (encsqlite_connection *)calloc(1, sizeof(*connection));
-  if (connection == NULL) {
-    sqlite3_close(db);
-    return SQLITE_NOMEM;
-  }
-
   connection->db = db;
-  connection->options = effective_options;
-
-  rc = initialize_codec_context(connection, key_material);
-  if (rc != SQLITE_OK) {
-    encsqlite_close_secure(connection);
-    return rc;
-  }
 
   rc = apply_runtime_policy(db, &effective_options);
   if (rc != SQLITE_OK) {

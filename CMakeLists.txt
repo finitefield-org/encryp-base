@@ -36,6 +36,7 @@ endif()
 
 add_library(encsqlite_base STATIC
   src/encsqlite_build_info.c
+  src/encsqlite_api.c
   src/encsqlite_codec.c
   src/encsqlite_connection.c
   src/encsqlite_crypto.c
@@ -61,6 +62,8 @@ add_library(sqlite3_vendor STATIC
 target_include_directories(sqlite3_vendor
   PUBLIC
     "${ENCSQLITE_SQLITE_SOURCE_DIR}"
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
 
 target_compile_definitions(sqlite3_vendor
@@ -96,6 +99,26 @@ if(BUILD_TESTING)
     tests/test_connection.c
   )
 
+  add_executable(encsqlite_api_test
+    tests/test_api.c
+  )
+
+  add_executable(encsqlite_differential_test
+    tests/test_differential.c
+  )
+
+  add_executable(encsqlite_corruption_test
+    tests/test_corruption.c
+  )
+
+  add_executable(encsqlite_benchmark
+    tests/test_benchmark.c
+  )
+
+  add_executable(encsqlite_policy_test
+    tests/test_policy.c
+  )
+
   add_executable(encsqlite_page_format_test
     tests/test_page_format.c
   )
@@ -105,6 +128,11 @@ if(BUILD_TESTING)
     target_compile_options(encsqlite_crypto_test PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(encsqlite_codec_test PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(encsqlite_connection_test PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(encsqlite_api_test PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(encsqlite_differential_test PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(encsqlite_corruption_test PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(encsqlite_benchmark PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(encsqlite_policy_test PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(encsqlite_page_format_test PRIVATE -Wall -Wextra -Wpedantic)
   endif()
 
@@ -128,6 +156,31 @@ if(BUILD_TESTING)
       encsqlite_base
   )
 
+  target_link_libraries(encsqlite_api_test
+    PRIVATE
+      encsqlite_base
+  )
+
+  target_link_libraries(encsqlite_differential_test
+    PRIVATE
+      encsqlite_base
+  )
+
+  target_link_libraries(encsqlite_corruption_test
+    PRIVATE
+      encsqlite_base
+  )
+
+  target_link_libraries(encsqlite_benchmark
+    PRIVATE
+      encsqlite_base
+  )
+
+  target_link_libraries(encsqlite_policy_test
+    PRIVATE
+      encsqlite_base
+  )
+
   target_link_libraries(encsqlite_page_format_test
     PRIVATE
       encsqlite_base
@@ -137,5 +190,10 @@ if(BUILD_TESTING)
   add_test(NAME encsqlite_crypto_test COMMAND encsqlite_crypto_test)
   add_test(NAME encsqlite_codec_test COMMAND encsqlite_codec_test)
   add_test(NAME encsqlite_connection_test COMMAND encsqlite_connection_test)
+  add_test(NAME encsqlite_api_test COMMAND encsqlite_api_test)
+  add_test(NAME encsqlite_differential_test COMMAND encsqlite_differential_test)
+  add_test(NAME encsqlite_corruption_test COMMAND encsqlite_corruption_test)
+  add_test(NAME encsqlite_benchmark COMMAND encsqlite_benchmark)
+  add_test(NAME encsqlite_policy_test COMMAND encsqlite_policy_test)
   add_test(NAME encsqlite_page_format_test COMMAND encsqlite_page_format_test)
 endif()

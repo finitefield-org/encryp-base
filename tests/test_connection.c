@@ -42,6 +42,21 @@ static void make_temp_path(char *path, size_t path_len) {
   unlink(path);
 }
 
+static void read_file_prefix(const char *path, uint8_t *buffer, size_t len) {
+  FILE *file = fopen(path, "rb");
+  size_t bytes_read;
+
+  if (file == NULL) {
+    fail("fopen failed");
+  }
+
+  bytes_read = fread(buffer, 1, len, file);
+  fclose(file);
+  if (bytes_read != len) {
+    fail("fread failed");
+  }
+}
+
 static int query_int(sqlite3 *db, const char *sql, int *out_value) {
   sqlite3_stmt *stmt = NULL;
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
@@ -84,14 +99,20 @@ static int query_text(sqlite3 *db, const char *sql, char *buffer, size_t buffer_
 static void test_connection_policy(void) {
   char path[128];
   encsqlite_connection *connection = NULL;
+  encsqlite_connection *reopened_connection = NULL;
   sqlite3 *db = NULL;
   encsqlite_key_material key_material;
+  encsqlite_open_options reopen_options;
   encsqlite_open_options options;
   uint8_t raw_secret[ENCSQLITE_CODEC_KEY_BYTES];
   char *error_message = NULL;
   int rc;
   int value = -1;
   char text[32];
+  uint8_t header[ENCSQLITE_SQLITE_HEADER_BYTES];
+  static const uint8_t sqlite_header[ENCSQLITE_SQLITE_HEADER_BYTES] = {
+      'S', 'Q', 'L', 'i', 't', 'e', ' ', 'f',
+      'o', 'r', 'm', 'a', 't', ' ', '3', '\0'};
 
   make_temp_path(path, sizeof(path));
   fill_sequence(raw_secret, sizeof(raw_secret), 0x11);
@@ -172,6 +193,26 @@ static void test_connection_policy(void) {
 
   rc = encsqlite_close_secure(connection);
   check_sqlite_ok(rc, "close failed");
+
+  read_file_prefix(path, header, sizeof(header));
+  check_true(memcmp(header, sqlite_header, sizeof(sqlite_header)) != 0,
+             "database file should not contain plaintext SQLite header");
+
+  reopen_options = options;
+  reopen_options.create_if_missing = 0;
+  rc = encsqlite_open_v2(&reopened_connection, path, &key_material, &reopen_options);
+  check_sqlite_ok(rc, "reopen failed");
+  check_true(reopened_connection != NULL, "reopened connection missing");
+
+  db = encsqlite_connection_sqlite3(reopened_connection);
+  check_true(db != NULL, "reopened sqlite handle missing");
+
+  rc = query_int(db, "SELECT COUNT(*) FROM t;", &value);
+  check_sqlite_ok(rc, "reopened row count query failed");
+  check_true(value == 1, "reopened database should preserve rows");
+
+  rc = encsqlite_close_secure(reopened_connection);
+  check_sqlite_ok(rc, "reopened close failed");
 
   unlink(path);
   {
